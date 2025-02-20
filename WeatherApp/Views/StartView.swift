@@ -11,7 +11,8 @@ import CoreLocation
 struct StartView: View {
     
     @FocusState private var isSearching: Bool
-    @EnvironmentObject private var locationManager: LocationManager
+    @State private var searchText: String = ""
+    @StateObject private var locationManager = LocationManager()
     @State private var navigateToWeatherView = false
     private let weatherService = WeatherService()
     @State private var isLoading = false
@@ -76,7 +77,7 @@ struct StartView: View {
                                 Image(systemName: "magnifyingglass")
                                     .foregroundColor(.gray)
                                 
-                                TextField("", text: .constant(""))
+                                TextField("", text: $searchText)
                                     .foregroundColor(.black)
                                     .focused($isSearching)
                             }
@@ -85,8 +86,13 @@ struct StartView: View {
                             .background(Color.gray.opacity(0.3))
                             .cornerRadius(25)
                             
-                            //MARK: - Add search by text
-                            Button(action: {}) {
+                            Button(action: {
+                                if !searchText.trimmingCharacters(in: .whitespaces).isEmpty {
+                                    getSearchedCityWeatherData()
+                                } else {
+                                    ToastManager.shared.showToast(message: "Enter city name")
+                                }
+                            }) {
                                 Text("check")
                                     .font(.headline)
                                     .foregroundColor(.white)
@@ -110,7 +116,7 @@ struct StartView: View {
                     locationManager.checkAndRequestLocationPermission()
                 }
                 .navigationDestination(isPresented: $navigateToWeatherView) {
-                    WeatherView()
+                    WeatherView(vm: vm)
                 }
                 if isLoading {
                     ZStack {
@@ -148,16 +154,35 @@ struct StartView: View {
                 }
             } else if let city = city {
                 vm.city = city
-                weatherService.getWeather(locationKey: city.code) { weather, error in
-                    if let error = error {
-                        DispatchQueue.main.async {
-                            ToastManager.shared.showToast(message: "Failed to fetch weather data: \(error)")
-                        }
-                    } else if let weather = weather {
-                        vm.weather = weather
-                        navigateToWeatherView = true
-                    }
+                getWeatherData(code: city.code)
+            }
+        }
+    }
+    
+    private func getSearchedCityWeatherData() {
+        isLoading = true
+        weatherService.getCityByName(cityName: searchText) { city, error in
+            isLoading = false
+            if let error = error {
+                DispatchQueue.main.async {
+                    ToastManager.shared.showToast(message: "Failed to get city data: \(error)")
                 }
+            } else if let city = city {
+                vm.city = city
+                getWeatherData(code: city.code)
+            }
+        }
+    }
+    
+    private func getWeatherData(code: String) {
+        weatherService.getWeather(locationKey: code) { weather, error in
+            if let error = error {
+                DispatchQueue.main.async {
+                    ToastManager.shared.showToast(message: "Failed to fetch weather data: \(error)")
+                }
+            } else if let weather = weather {
+                vm.weather = weather
+                navigateToWeatherView = true
             }
         }
     }
